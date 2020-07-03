@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# %%
 """
 
 Chicago crimes - crime type classifier.
@@ -17,12 +18,13 @@ import pandas as pd
 import numpy as np
 import itertools
 import matplotlib.pyplot as plt
-
 import seaborn as sns
 
 from pyspark.ml.stat import Correlation
 from pyspark.ml.feature import VectorAssembler
 from sklearn.metrics import confusion_matrix
+
+from pathlib import Path
 
 
 # %%
@@ -36,9 +38,9 @@ spark = SparkSession.builder.appName('ChicagoCrimes').getOrCreate()
 files = ['Chicago_Crimes_2005_to_2007.csv', 'Chicago_Crimes_2008_to_2011.csv', 
          'Chicago_Crimes_2012_to_2017.csv']
 dfTab = []
-
+csvDir = str(Path.home()) + '/projects/chicago-crimes/'
 for f in files:
-    df = spark.read.csv('/home/art/projects/chicago_crimes/' + f, header=True, inferSchema=True)
+    df = spark.read.csv(csvDir + f, header=True, inferSchema=True)
     dfTab.append(df)
 
 # %%
@@ -168,7 +170,7 @@ crimes7 = tmpdf
 crimes_for_corr = tmpdf.drop("PrimaryType")
 
 # %%
-crimes_for_corr.select('PrimaryTypeIndex').show(10)
+crimes_for_corr.select('PrimaryTypeIndex').show(5)
 
 
 # %%
@@ -235,7 +237,7 @@ from pyspark.ml.classification import RandomForestClassifier
 # Train a RandomForest model.
 
 rf = RandomForestClassifier(labelCol="PrimaryTypeIndex", featuresCol="features", 
-                            numTrees=70, maxBins=400, maxDepth=10, minInstancesPerNode=30)
+                            numTrees=70, maxBins=400, maxDepth=12, minInstancesPerNode=30)
 
 outputConverter = IndexToString(inputCol="prediction", outputCol="predictedPrimaryType")
 outputConverter.setLabels(primaryTypeIndexerModel.labels)
@@ -251,7 +253,7 @@ model = pipeline.fit(train_df)
 
 predictions = model.transform(test_df)
 
-#%%
+# %%
 
 predictions.select('features', 'PrimaryType', 'predictedPrimaryType').show(5)
 
@@ -278,7 +280,6 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     else:
         print('Confusion matrix, without normalization')
         
-    print(cm)
     plt.imshow(cm, interpolation='nearest', cmap=cmap)
     plt.title(title)
     plt.colorbar()
@@ -295,8 +296,8 @@ def plot_confusion_matrix(cm, classes, normalize=False, title='Confusion matrix'
     plt.tight_layout()
     plt.ylabel('True label')
     plt.xlabel('Predicted label')
-    
-# %%    
+
+# %%
     
 class_temp = predictions.select("PrimaryType").groupBy("PrimaryType")\
     .count().sort('count', ascending=False).toPandas()
@@ -329,3 +330,5 @@ plt.figure(figsize=(20,10))
 plot_confusion_matrix(cnf_matrix, classes=class_temp, normalize=True,
                       title='Normalized confusion matrix')
 plt.show()
+
+# %%
