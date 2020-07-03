@@ -98,24 +98,25 @@ for col in categorical_columns:
 crimes5 = indexed_df.drop("Location")
 crimes5.printSchema()
 
-# %%
-
-ptypes = crimes5.select('Primary Type').distinct().rdd.flatMap(lambda x: x).collect()
-bins, counts = crimes5.select('Primary Type').rdd.flatMap(lambda x: x).histogram(sorted(ptypes))
-
 
 # %%
+def plotHistogram(crimes_df, targetCol):
+    ptypes = crimes_df.select(targetCol).distinct().rdd.flatMap(lambda x: x).collect()
+    bins, counts = crimes_df.select(targetCol).rdd.flatMap(lambda x: x).histogram(sorted(ptypes))
+    df = pd.DataFrame(list(zip(bins, counts)), columns=['bin', 'frequency']).set_index('bin')
 
+    ax = df.sort_values(by='frequency', ascending=True).plot(kind='barh', figsize=(20,10), 
+                                                      title='Amount of Crimes by Primary Type')
+
+    ax.set_xlabel("Amount of Crimes")
+    ax.set_ylabel("Crime Type") 
+    return df
+
+
+# %%
 # Show histogram of Primary Type.
+df = plotHistogram(crimes5, 'Primary Type')
 
-df = pd.DataFrame(list(zip(bins, counts)), columns=['bin', 'frequency']).set_index('bin')
-
-ax = df.sort_values(by='frequency', ascending=True).plot(kind='barh', figsize=(14,10), 
-                                                         title='Amount of Crimes by Primary Type',
-                                                         colormap='Spectral')
-
-ax.set_xlabel("Amount of Crimes")
-ax.set_ylabel("Crime Type")
 
 # %%
 
@@ -124,6 +125,7 @@ unwanted_classes = df[df['frequency'] < 20000]
 # %%
 
 classes_to_exclude = list(unwanted_classes.index)
+print(classes_to_exclude)
 
 # %%
 from pyspark.sql.functions import when, col
@@ -140,18 +142,8 @@ crimes6 = tmpdf.drop('Primary Type')
 # %%
 # Show histogram of PrimaryType.
 
-ptypes = crimes6.select('PrimaryType').distinct().rdd.flatMap(lambda x: x).collect()
+df = plotHistogram(crimes6, 'PrimaryType')
 
-bins, counts = crimes6.select('PrimaryType').rdd.flatMap(lambda x: x).histogram(sorted(ptypes))
-
-df = pd.DataFrame(list(zip(bins, counts)), columns=['bin', 'frequency']).set_index('bin')
-
-ax = df.sort_values(by='frequency', ascending=True).plot(kind='barh', figsize=(14,10), 
-                                                         title='Amount of Crimes by Primary Type',
-                                                         colormap='Spectral')
-
-ax.set_xlabel("Amount of Crimes")
-ax.set_ylabel("Crime Type")
 
 # %%
 
@@ -159,7 +151,7 @@ Classes = crimes6.select('PrimaryType').distinct().rdd.flatMap(lambda x: x).coll
 print(Classes)
 
 # %%
-# Convert categorical attributes to numerical. 
+# Convert categorical target to numerical. 
 
 primaryTypeIndexer = StringIndexer(inputCol='PrimaryType', outputCol="PrimaryTypeIndex")
 primaryTypeIndexerModel = primaryTypeIndexer.fit(crimes6)
@@ -237,7 +229,7 @@ from pyspark.ml.classification import RandomForestClassifier
 # Train a RandomForest model.
 
 rf = RandomForestClassifier(labelCol="PrimaryTypeIndex", featuresCol="features", 
-                            numTrees=70, maxBins=400, maxDepth=12, minInstancesPerNode=30)
+                            numTrees=70, maxBins=400, maxDepth=15, minInstancesPerNode=30)
 
 outputConverter = IndexToString(inputCol="prediction", outputCol="predictedPrimaryType")
 outputConverter.setLabels(primaryTypeIndexerModel.labels)
